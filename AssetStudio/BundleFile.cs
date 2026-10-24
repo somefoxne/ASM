@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -350,14 +350,13 @@ namespace AssetStudio
                 case CompressionType.Lz4HC:
                 case CompressionType.Zstd:
                 case CompressionType.Oodle:
+                case CompressionType.Lzham:
                 {
                     var uncompressedBytes = new byte[uncompressedSize];
                     numWrite = BundleDecompressionHelper.DecompressBlock(compressionType, blocksInfoBytes, uncompressedBytes, ref errorMsg);
                     blocksInfoUncompressedStream = new MemoryStream(uncompressedBytes);
                     break;
                 }
-                case CompressionType.Lzham:
-                    throw new IOException($"Unsupported blockInfo compression type: {compressionType}.\n");
                 default:
                     throw new IOException($"Unknown blockInfo compression type: {compressionType}.\nYou may try to specify the compression type manually.\n");
             }
@@ -430,7 +429,7 @@ namespace AssetStudio
 
             byte[] sharedCompressedBuff = null;
             byte[] sharedUncompressedBuff = null;
-            if (blocksCompression > CompressionType.Lzma && blocksCompression != CompressionType.Lzham)
+            if (blocksCompression > CompressionType.Lzma)
             {
                 sharedCompressedBuff = BigArrayPool<byte>.Shared.Rent(blockSize);
                 sharedUncompressedBuff = BigArrayPool<byte>.Shared.Rent(blockSize);
@@ -464,6 +463,7 @@ namespace AssetStudio
                         case CompressionType.Lz4HC:
                         case CompressionType.Zstd:
                         case CompressionType.Oodle:
+                        case CompressionType.Lzham:
                             var compressedSize = (int)blockInfo.compressedSize;
                             var uncompressedSize = (int)blockInfo.uncompressedSize;
 
@@ -472,7 +472,7 @@ namespace AssetStudio
 
                             var read = reader.Read(sharedCompressedBuff, 0, compressedSize);
                             debugMsg += $"(read: {read.ToString().ColorIf(read != compressedSize, ColorConsole.BrightRed)})";
-                            var compressedSpan = new ReadOnlySpan<byte>(sharedCompressedBuff, 0, compressedSize);
+                            var compressedSpan = new Span<byte>(sharedCompressedBuff, 0, compressedSize);
                             var uncompressedSpan = new Span<byte>(sharedUncompressedBuff, 0, uncompressedSize);
 
                             numWrite = BundleDecompressionHelper.DecompressBlock(compressionType, compressedSpan, uncompressedSpan, ref errorMsg);
@@ -481,8 +481,6 @@ namespace AssetStudio
                                 blocksStream.Write(sharedUncompressedBuff, 0, uncompressedSize);
                             }
                             break;
-                        case CompressionType.Lzham:
-                            throw new IOException($"Unsupported block compression type: {compressionType}.\n");
                         default:
                             throw new IOException($"Unknown block compression type: {compressionType}.\nYou may try to specify the compression type manually.\n");
                     }
